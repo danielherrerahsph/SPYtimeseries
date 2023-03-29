@@ -1,4 +1,4 @@
-# Analyzing $SPY Price with Python's yfinance and pmdarima
+# Analyzing $SPY Price with Python
 
 This project analyzes historical prices of the SPDR S&P 500 ETF Trust ($SPY) using Python's yfinance and pmdarima packages to build classical time series ARIMA models, perform model diagnostics, and make and evaluate forecasts using MSE and MAPE.
 
