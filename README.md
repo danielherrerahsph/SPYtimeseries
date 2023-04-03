@@ -34,6 +34,6 @@ pmdarima documentation
 Introduction to Time Series Forecasting with Python
 
 ## License
-This project is licensed under the MIT License.Contact
+This project is licensed under the MIT License.
 
 
