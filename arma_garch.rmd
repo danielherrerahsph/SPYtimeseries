@@ -1,0 +1,14 @@
+---
+title: '<center>S&P 500: ARMA-GARCH model<center>'
+author: "<center>Daniel Herrera<center>"
+date: '<center>2023-04-23<center>'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Motivation
+
+As you may have noticed, we switched the workflow a bit and are coding in R. Part of data science is knowing the advantages and disadvantages of languages and packages. R is generally highly regarded for statistical analysis; however, here it is very evident as we will be trying to model the S&P 500 using an ARMA(p,q) + GARCH($\tilde{p}$,$\tilde{q}$) process. The package 'rugarch' allows for a very important implementation detail, that the ARMA and GARCH models are fit simultaneously. This is done using quasi-MLE because it allows us to not make a distribution about the distribution of the true error distribution, which is generally made out to be normally distibuted. 
