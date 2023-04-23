@@ -9,6 +9,81 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-# Motivation
+```{r, message=F, warning=F}
+library(fGarch)
+library(xts)
+library(TSA)
+```
+# todo 
 
-As you may have noticed, we switched the workflow a bit and are coding in R. Part of data science is knowing the advantages and disadvantages of languages and packages. R is generally highly regarded for statistical analysis; however, here it is very evident as we will be trying to model the S&P 500 using an ARMA(p,q) + GARCH($\tilde{p}$,$\tilde{q}$) process. The package 'rugarch' allows for a very important implementation detail, that the ARMA and GARCH models are fit simultaneously. This is done using quasi-MLE because it allows us to not make a distribution about the distribution of the true error distribution, which is generally made out to be normally distibuted. 
+change the below to be train and test split...
+plot the results of forecast and maybe mse? 
+try another variation of ARMa or GARCH part
+
+
+## Motivation
+
+As you may have noticed, we switched the workflow a bit and are coding in R. Part of data science is knowing the advantages and disadvantages of languages and packages. R is generally highly regarded for statistical analysis; however, here it is very evident as we will be trying to model the S&P 500 using an ARMA(p,q) + GARCH($\tilde{p}$,$\tilde{q}$) process. The package 'rugarch' allows for a very important implementation detail, that the ARMA and GARCH models are fit simultaneously. This is done using quasi-MLE because it allows us to not make a distribution about the distribution of the true error distribution, which is generally made out to be normally distributed. 
+
+
+## Model Statement 
+
+
+$X_t = \mu + \sum_{j=1}^{p} \phi_j X_{t-j} + \sum_{j=0}^{q} \theta_j W_{t-j} \\$
+
+$W_t = \sigma_t \varepsilon_t \\$
+
+$\sigma_t^2 = b_0 + \sum_{j=1}^{p_0} b_j W_{t-j}^2 + \sum_{j=1}^{q_0} a_j \sigma_{t-j}^2$
+
+We fit an ARMA(p,q) model onto $X_t$ and then use quasi-MLE to estimate the ARMA and GARCH parameters simultaneously as mentioned previously. 
+
+We see when fitting an AR(1) + GARCH(1,1) that the arch and garch effects are significant p-value < 0.05 for $\alpha_1$ and $\beta_1$. As well, the distribution estimated is the student's t-distribution with 4.9 df, essentially 5. 
+
+```{r}
+# laod data
+df <- read.csv('spy_returns.csv')
+
+
+X = diff(log(df$Close))
+time_series <- xts(x = X, order.by = as.Date(df$Date[2:length(df$Date)]))
+
+# fit model 
+fit = garchFit(~arma(1,0) + garch(1,1), cond.dist = "std", data = X, trace = F)
+summary(fit)
+```
+
+The resulting model is as follows: 
+
+$$
+X_t = \mu + \phi_1 X_{t-1} + W_{t} \\
+$$
+$$
+W_t = \sigma_t \varepsilon_t \\
+$$
+$$
+\sigma_t^2 = \omega + \alpha_1 W_{t-1}^2 + \beta_1 \sigma_{t-1}^2
+$$
+
+
+
+$$
+X_t = 1.017 \times 10^{-3} - 5.407 \times 10^{-2} X_{t-1} +  W_{t} \\
+$$
+$$
+W_t = \sigma_t \varepsilon_t \\
+$$
+$$
+\sigma_t^2 = 2.587 \times 10^{-6} + .1796 W_{t-1}^2 + .809 \sigma_{t-1}^2
+$$
+
+
+## McLeod Li Test
+
+We revisit the McLeod-Li test to quickly check for arch effects to justify our model choice on the time series **after** fitting the AR(1) process. 
+
+Based on the McLeod-Li test, we recall that we would reject the null hypothesis that there are no ARCH effects in the time series and conclude that there are ARCH effects. 
+
+```{r}
+McLeod.Li.test(arima(X, order = c(1,0,0)))
+```
+
