@@ -13,13 +13,9 @@ knitr::opts_chunk$set(echo = TRUE)
 library(fGarch)
 library(xts)
 library(TSA)
+library(rugarch)
+
 ```
-# todo 
-
-change the below to be train and test split...
-plot the results of forecast and maybe mse? 
-try another variation of ARMa or GARCH part
-
 
 ## Motivation
 
@@ -86,4 +82,105 @@ Based on the McLeod-Li test, we recall that we would reject the null hypothesis 
 ```{r}
 McLeod.Li.test(arima(X, order = c(1,0,0)))
 ```
+## Predictions 
+
+Below we notice that we are still predicting 0 for our mean model. This occurs due to the nature of our forecasting process, predicting n steps ahead where n is large and our assumption of a constant mean. Thus, as n increases, our model approaches the Mu as estimated by our fit, which is 0.00099 as shown in the coefficients below. 
+
+```{r}
+# test - train split 
+train_p= 0.8 
+
+create_split <- function(ts, train_p) {
+  train_len = round(length(ts) * train_p)
+  train_ts = ts[1:train_len] 
+  test_ts = ts[c((train_len + 1):length(ts))]
+
+return(list(train = train_ts, test = test_ts))
+}
+
+data_spl = create_split(time_series, 0.8)
+train = data_spl$train
+test = data_spl$test
+
+# fit the model with training data 
+ar1g_fit = garchFit(~arma(1,0) + garch(1,1), cond.dist = "std", data = train, trace = F)
+print(summary(ar1g_fit))
+
+# make future fcs
+fcst <- predict(ar1g_fit, n.ahead = length(test), plot = T)
+
+```
+
+## Rolling Window (One-Step ahead)
+
+We switch to a more practical approach of using a one-step ahead forecast for $\hat{\sigma}_t$. In essence, we are fitting a series of ARMA + GARCH models to create our forecasts. We first fit our model on the train set, then given the new observed value at time t+1, we fit another model using all previous values until time t+1 to predict time t+2. This seems like the most practical implementation in practice if we wanted to predict these volatilies day to day to create trading strategies. 
+
+The plot below shows the predicted volatility of the test set using the one-step ahead forecast approach and the true returns of the S&P500. We can see how the volatility peaks align closely with the swings in returns of the market and additionally give insight into quieter market periods. 
+
+```{r}
+rolling_forecast <- function(y_train, y_test, p_ar, q_ma, p_garch, q_garch) {
+  n_test <- length(y_test)
+  rolling_preds <- c()
+  
+  # change back to 1:n_test
+  for (i in 1:n_test) {
+    # Make special case for initial fcst 
+    if (i == 1) {
+      train <- y_train
+    }
+    else{
+    train <- c(y_train, y_test[1:(i - 1)])
+    }
+
+    # Define the ARMA-GARCH model
+    # s is standard garch model 
+    # distribution is students t dist
+    spec <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(p_garch, q_garch)),
+                       mean.model = list(armaOrder = c(p_ar, q_ma), include.mean = TRUE),
+                       distribution.model = "std")
+    
+    # Fit the model
+    model_fit <- ugarchfit(spec, train, solver = "hybrid")
+    
+    # One step ahead forecast
+    pred <- ugarchforecast(model_fit, n.ahead = 1)
+    rolling_preds[i] <- sigma(pred)[1]
+    # rolling_preds[i] <- sqrt(as.numeric(pred@forecast$sigmaFor[1]))
+
+  }
+  
+  # # Convert the predictions to a time-series object with the same index as y_test
+  # rolling_preds_ts <- ts(rolling_preds, start = start(y_test), end = end(y_test), frequency = frequency(y_test))
+  
+  return(rolling_preds)
+}
+```
+
+```{r}
+# Assuming y_train and y_test are your training and testing time-series data
+p_ar <- 1
+q_ma <- 0
+p_garch <- 1
+q_garch <- 1
+
+rolling_preds <- rolling_forecast(train, test, p_ar, q_ma, p_garch, q_garch)
+```
+
+```{r}
+
+# need to convert rolling preds to ts 
+time_index <- time(test)
+
+## Plot the test set
+plot(time_index, rolling_preds, type = "l", col = "red", main = "Test Set vs. Rolling Predictions", xlab = "Time", ylab = "Value", 
+     ylim = c(-0.04, 0.04))
+
+# Add the rolling predictions to the existing plot
+lines(time(test), test[,1], col = "black")
+
+# Add a legend to the plot
+legend("topleft", legend = c("Test Set", "Rolling Predictions"), col = c("black", "red"), lty = 1, bty = "n")
+```
+
+
 
