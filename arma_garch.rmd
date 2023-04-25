@@ -1,8 +1,10 @@
 ---
 title: '<center>S&P 500: ARMA-GARCH model<center>'
 author: "<center>Daniel Herrera<center>"
-date: '<center>2023-04-23<center>'
-output: html_document
+date: "<center>2023-04-23<center>"
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include=FALSE}
