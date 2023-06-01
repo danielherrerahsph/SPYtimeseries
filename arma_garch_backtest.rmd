@@ -1,0 +1,173 @@
+---
+title: '<center>S&P 500: ARMA-GARCH model<center>'
+author: "<center>Daniel Herrera<center>"
+date: "<center>2023-04-23<center>"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, message=F, warning=F}
+library(fGarch)
+library(xts)
+library(TSA)
+library(rugarch)
+library(dplyr)
+```
+
+## ARMA + GARCH Volatility Trading Strategy
+
+Armed with an ARMA + GARCH model from the fitting found in our previous section, [insert name here of previous article], we will outline the steps necessary to implement a useful trading strategy: 
+
+1) Use a rolling window approach to estimate the ARMA(1,0) + GARCH(1,1) model to historical data in order to compute the log returns and volatility using one-step ahead predictions
+
+2) Use a volatility threshold to define our buy and sell signals (hyperparameter to be adjusted in backtesting)
+
+3) Calculate the cumulative return over the period by utilizing the mathematical beauty of having modeled log returns 
+
+4) Compare different cumulative returns with varying volatility thresholds and a baseline buy and hold strategy (buy on day one and hold throughout the historical period)
+
+## Rolling Window Approach
+
+In a previous section we discussed the rolling window approach in more detail including a comparison with an n-step ahead forecasting approach. We will overlook the details here and simply recap that we are fitting many ARMA(p,q) + GARCH(P,Q) models on a rolling basis, in this case each day, by adding one day of historical information to the training set and forecasting the next day of the test set. This seems like the most practical implementation in practice if we wanted to predict these volatility day-to-day to create trading strategies. 
+
+In order to do this, we first load in our data (historical data from 2010 to 2020) and create our training and test datasets. 
+
+```{r}
+# laod data
+df <- read.csv('spy_returns.csv')
+
+
+X = diff(log(df$Close))
+time_series <- xts(x = X, order.by = as.Date(df$Date[2:length(df$Date)]))
+
+# test - train split 
+train_p= 0.8 
+
+create_split <- function(ts, train_p) {
+  train_len = round(length(ts) * train_p)
+  train_ts = ts[1:train_len] 
+  test_ts = ts[c((train_len + 1):length(ts))]
+
+return(list(train = train_ts, test = test_ts))
+}
+```
+
+```{r}
+data_spl = create_split(time_series, 0.8)
+train = data_spl$train
+test = data_spl$test
+```
+
+Now we are able to fit the models on a rolling window basis using data up until time t to forecast the next day ahead. Based on our previous findings and literature, we chose to simplify the range of possible ARMA(p,q) + GARCH(P,Q) models such that only a model of the order ARMA(1,0) + GARCH(1,1) can be fit on the time series. 
+
+```{r}
+# fit t-1 models on rolling window basis
+rolling_forecast <- function(y_train, y_test, p_ar, q_ma, p_garch, q_garch) {
+  n_test <- length(y_test)
+  rolling_vol_preds <- c()
+  rolling_rt_preds <- c()
+
+  for (i in 1:n_test) {
+    # Make special case for initial fcst 
+    if (i == 1) {
+      train <- y_train
+    }
+    else{
+    train <- c(y_train, y_test[1:(i - 1)])
+    }
+
+    # Define the ARMA-GARCH model
+    # s is standard garch model 
+    # distribution is students t dist
+    spec <- ugarchspec(variance.model = list(model = "sGARCH", garchOrder = c(p_garch, q_garch)),
+                       mean.model = list(armaOrder = c(p_ar, q_ma), include.mean = TRUE),
+                       distribution.model = "std")
+    
+    # Fit the model
+    model_fit <- ugarchfit(spec, train, solver = "hybrid")
+    
+    # One step ahead forecast
+    pred <- ugarchforecast(model_fit, n.ahead = 1)
+    rolling_vol_preds[i] <- sigma(pred)[1]
+    rolling_rt_preds[i] <- fitted(pred)[1]
+  }
+  
+  return(list(rolling_vol_preds, rolling_rt_preds))
+}
+```
+
+```{r}
+# Assuming y_train and y_test are your training and testing time-series data
+p_ar <- 1
+q_ma <- 0
+p_garch <- 1
+q_garch <- 1
+
+rolling_preds <- rolling_forecast(train, test, p_ar, q_ma, p_garch, q_garch)
+```
+
+Armed with our forecasts for log returns and volatility for the one-step ahead method, we are able to build our our trading strategy. We will implement the following strategy (and a subsequent one to come): 
+
+- If the forecasted return in positive, then we will buy the position and thus gain the log return. 
+
+- If the forecasted return is negative, then we will sell the position at close the previous day and have a log return of 0. 
+
+- if the position is currently under buy for the previous day and tomorrow's forecast is positive, we would remain holding the position marking it as 'buy'. If the position is currently 'sold' and the forecast for tomorrow is negative, the position will remain as sold and the log return for the day will remain at 0. 
+
+```{r}
+
+# create df of predicted returns and signals
+test_df <- df %>%  
+  rename(log_return = Return) %>% 
+  select(Date, log_return) %>%  
+  filter(Date >= time(test)[1]) %>% 
+  mutate(pred_log_rt = rolling_preds[[2]], 
+         buy_signal = case_when(
+           pred_log_rt >= 0 ~ 1, 
+           TRUE ~ 0
+         ), 
+         sell_signal = case_when(
+           pred_log_rt < 0 ~ -1, 
+           TRUE ~ 0
+         ), 
+         # log returns buy only
+         buy_log_rt = buy_signal * log_return,
+         #  log returns short only
+         short_log_rt = sell_signal * log_return, 
+         # log returns buy and short
+         buy_short_log_rt = buy_log_rt + short_log_rt,
+        # strategy for buy and hold
+        strat_buy_hold_cumul = cumsum(log_return),
+        # strategy for buy only 
+        strat_buy_cumul = cumsum(buy_log_rt),
+        #strategy for buy and short 
+        strat_buy_short_cumul = cumsum(buy_short_log_rt)
+  )
+```
+
+We can observe the cumulative log returns in the plot below using different strategies: 
+
+1) Buy and Hold: A traditional baseline strategy of buying the asset at the start of the test period (01-26-2018) and holding until the end of the test period (01-31-2020). 
+
+2) Buy and Sell: As described above, we sell at close if the log return is projected to be negative and hold or buy if the projected log return is positive. 
+
+3) Buy and Short: A slight modification to the previous strategy where we short on the days where the forecasted log return is negative and buy when the forecasted log return is positive.
+
+```{r}
+# plot of returns under different strategies
+plot(time(test), test_df$strat_buy_hold_cumul, type = "l", col = "black", main = "Cumulative Returns (Equity Curve)", xlab = "Time", ylab = "")
+lines(time(test),  test_df$strat_buy_cumul, col = "blue", lty = 2)
+lines(time(test),  test_df$strat_buy_short_cumul, col = "red", lty = 2)
+
+# Add a legend to the plot
+legend("topleft", legend = c("Buy and Hold", "Buy and Sell", "Buy and Short"), col = c("black", "blue","red"), lty = c(1,2,2), bty = "n")
+```
+
+
+
