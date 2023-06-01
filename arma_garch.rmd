@@ -17,12 +17,11 @@ library(fGarch)
 library(xts)
 library(TSA)
 library(rugarch)
-
 ```
 
 ## Motivation
 
-As you may have noticed, we switched the workflow a bit and are coding in R. Part of data science is knowing the advantages and disadvantages of languages and packages. R is generally highly regarded for statistical analysis; however, here it is very evident as we will be trying to model the S&P 500 using an ARMA(p,q) + GARCH($\tilde{p}$,$\tilde{q}$) process. The package 'rugarch' allows for a very important implementation detail, that the ARMA and GARCH models are fit simultaneously. This is done using quasi-MLE because it allows us to not make a distribution about the distribution of the true error distribution, which is generally made out to be normally distributed. 
+As you may have noticed, we switched the workflow a bit and are coding in R. Part of data science is knowing the advantages and disadvantages of languages and packages. R is generally highly regarded for statistical analysis; however, here it is very evident as we will be trying to model the S&P 500 using an ARMA(p,q) + GARCH($\tilde{p}$,$\tilde{q}$) process. The package 'rugarch' allows for a very important implementation detail, that the ARMA and GARCH models are fit simultaneously. This is done using quasi-MLE because it allows us to not make an assumption about the distribution of the  errors, which is generally made out to be normally distributed. 
 
 
 ## Model Statement 
@@ -36,7 +35,7 @@ $\sigma_t^2 = b_0 + \sum_{j=1}^{p_0} b_j W_{t-j}^2 + \sum_{j=1}^{q_0} a_j \sigma
 
 We fit an ARMA(p,q) model onto $X_t$ and then use quasi-MLE to estimate the ARMA and GARCH parameters simultaneously as mentioned previously. 
 
-We see when fitting an AR(1) + GARCH(1,1) that the arch and garch effects are significant p-value < 0.05 for $\alpha_1$ and $\beta_1$. As well, the distribution estimated is the student's t-distribution with 4.9 df, essentially 5. 
+We see when fitting an AR(1) + GARCH(1,1) that the arch and garch effects are significant, p-value < 0.05 for $\alpha_1$ and $\beta_1$. As well, the distribution estimated is the student's t-distribution with 4.9 df, essentially 5. 
 
 ```{r}
 # laod data
@@ -80,7 +79,7 @@ $$
 
 We revisit the McLeod-Li test to quickly check for arch effects to justify our model choice on the time series **after** fitting the AR(1) process. 
 
-Based on the McLeod-Li test, we recall that we would reject the null hypothesis that there are no ARCH effects in the time series and conclude that there are ARCH effects. 
+Based on the McLeod-Li test, we find that we would reject the null hypothesis that there are no ARCH effects in the time series and conclude that there are ARCH effects. 
 
 ```{r}
 McLeod.Li.test(arima(X, order = c(1,0,0)))
@@ -116,7 +115,7 @@ fcst <- predict(ar1g_fit, n.ahead = length(test), plot = T)
 
 ## Rolling Window (One-Step ahead)
 
-We switch to a more practical approach of using a one-step ahead forecast for $\hat{\sigma}_t$. In essence, we are fitting a series of ARMA + GARCH models to create our forecasts. We first fit our model on the train set, then given the new observed value at time t+1, we fit another model using all previous values until time t+1 to predict time t+2. This seems like the most practical implementation in practice if we wanted to predict these volatilies day to day to create trading strategies. 
+We switch to a more practical approach of using a one-step ahead forecast for $\hat{\sigma}_t$. In essence, we are fitting a series of ARMA + GARCH models to create our forecasts. We first fit our model on the train set, then given the new observed value at time t+1, we fit another model using all previous values until time t+1 to predict time t+2. This seems like the most practical implementation in practice if we wanted to predict the volatility day-to-day to create trading strategies. 
 
 The plot below shows the predicted volatility of the test set using the one-step ahead forecast approach and the true returns of the S&P500. We can see how the volatility peaks align closely with the swings in returns of the market and additionally give insight into quieter market periods. 
 
@@ -125,7 +124,6 @@ rolling_forecast <- function(y_train, y_test, p_ar, q_ma, p_garch, q_garch) {
   n_test <- length(y_test)
   rolling_preds <- c()
   
-  # change back to 1:n_test
   for (i in 1:n_test) {
     # Make special case for initial fcst 
     if (i == 1) {
@@ -187,7 +185,7 @@ legend("topleft", legend = c("Test Set Log Returns", "Rolling Predictions Volati
 We noticed previously that the coefficient for AR(1) of the ARMA(1,0) + GARCH(1,1) model was statistically significant at the alpha 0.001 level (p-value = 0.008). As a result, we decided to see what the expected log returns would be since we would generally expect the prediction in the future of returns to be 0. We notice that when using a rolling window, as done with the volatility, the log returns are only trivially different than 0. One idea, however, is to see the direction that they are moving in and if that lines up with the direction of the test set; that is if the forecast for one day ahead is a positive return, is the test set also positive and likewise for negative.  
 
 ```{r}
-# convert rolling preds forecast of colatility to log returns (AR)
+# convert rolling preds forecast of volatility to log returns (AR)
 
 rolling_forecast_returns <- function(y_train, y_test, p_ar, q_ma, p_garch, q_garch) {
   n_test <- length(y_test)
@@ -228,7 +226,6 @@ rolling_forecast_returns <- function(y_train, y_test, p_ar, q_ma, p_garch, q_gar
 
 ```{r}
 rolling_preds_returns <- rolling_forecast_returns(train, test, p_ar, q_ma, p_garch, q_garch)
-
 ```
 
 
