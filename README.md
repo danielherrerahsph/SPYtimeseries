@@ -1,25 +1,49 @@
-# Analyzing $SPY Price with Python
+# Time Series for S&P 500 Returns and Volatility Forecasting
 
-This project analyzes historical prices of the SPDR S&P 500 ETF Trust ($SPY) using Python's yfinance and pmdarima packages to build classical time series ARIMA models, perform model diagnostics, and make and evaluate forecasts using MSE and MAPE.
+This project forecasts returns and volatilities of the S&P 500 ETF Trust($SPY) using classical time series approaches such as ARMA, GARCH, and ARMA + GARCH, performing model diagnostics, and evaluating forecasts.
 
 ## Installation
-To run the code, you need to have the following Python packages installed:
+**Python**
+- arch
+- matplotlib 
+- numpy 
+- pandas
+- pmdarima
+- scipy
+- sklearn
+- statsmodels
+- yfinance
 
-yfinance
+Open the terminal and run the following commands:
+```
+pip install arch matplotlib.pyplot numpy pandas pmdarima scipy sklearn statsmodels yfinance
+```
 
-pmdarima
+**R**
+- fGarch
+- xts
+- TSA
+- rugarch
 
-matplotlib
+Open the R console and run the following commands:
 
-numpy
+```
+install.packages("fGarch")
+install.packages("xts")
+install.packages("TSA")
+install.packages("rugarch")
+```
+**Clone the Repository**
 
-pandas
+To clone this repository and access all the files, run the following command in your terminal:
 
-scikit-learn
+```
+git clone https://github.com/danielherrerahsph/SPYtimeseries.git
+```
 
 ## Usage
 
-To use the code, simply run the data_pull.ipynb notebook in Jupyter Notebook or JupyterLab. The notebook contains step-by-step instructions for downloading the $SPY data, performing exploratory data analysis, building ARIMA models, performing model diagnostics, making forecasts, and evaluating the accuracy of the forecasts.
+To use the code, simply run either notebook in Jupyter Notebook or JupyterLab. The notebook contains step-by-step instructions for downloading the $SPY data, performing exploratory data analysis, building ARIMA models, performing model diagnostics, making forecasts, and evaluating the accuracy of the forecasts.
 
 ## Contributing
 
@@ -27,11 +51,7 @@ Contributions to this project are welcome. If you would like to report a bug or 
 
 ## Credits
 
-This project was created by Daniel Herrera. It was inspired by the following resources:
-
-yfinance documentation
-pmdarima documentation
-Introduction to Time Series Forecasting with Python
+This project was created by Daniel Herrera. To read in more detail, check out my medium post [Part I: Introduction to ARMA Models with Financial Data](https://medium.com/@corredaniel1500/introduction-to-arma-models-with-financial-data-6ceb8b52fdd6)
 
 ## License
 This project is licensed under the MIT License.
